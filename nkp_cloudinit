@@ -1,0 +1,60 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+users:
+  - name: nkp
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA...replace_with_your_public_key
+
+ssh_pwauth: false
+
+packages:
+  - openssh-server
+  - ca-certificates
+  - curl
+  - gnupg
+  - apt-transport-https
+
+runcmd:
+  # Enable SSH
+  - systemctl enable --now ssh
+
+  # Install Docker
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - bash -lc 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - groupadd docker || true
+  - usermod -aG docker nkp
+  - chown root:docker /var/run/docker.sock
+  - systemctl enable --now docker
+
+  # Install latest kubectl
+  - curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
+  - bash -lc 'echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /" > /etc/apt/sources.list.d/kubernetes.list'
+  - apt-get update
+  - apt-get install -y kubectl
+
+  # Disable swap
+  - swapoff -a
+  - sed -i '/ swap / s/^/#/' /etc/fstab
+
+  # Kernel settings for Kubernetes networking
+  - echo 'br_netfilter' | tee /etc/modules-load.d/br_netfilter.conf
+  - modprobe br_netfilter
+  - tee /etc/sysctl.d/99-k8s.conf >/dev/null <<'EOF'
+    net.bridge.bridge-nf-call-iptables=1
+    net.ipv4.ip_forward=1
+EOF
+  - sysctl --system
+
+  # Disable UFW firewall
+  - systemctl stop ufw || true
+  - systemctl disable ufw || true
