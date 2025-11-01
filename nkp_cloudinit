@@ -9,7 +9,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     lock_passwd: true
     ssh_authorized_keys:
-      - ssh-ed25519 AAAA...replace_with_your_public_key
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC1xuFN97BkbaouMEuqQ+Ow7q0KQEG2GZHAbzJLnh6mD
 
 ssh_pwauth: false
 
